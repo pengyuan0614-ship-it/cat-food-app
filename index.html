@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>猫咪食品管理系统 V3（云同步版）</title>
+
+<style>
+body{
+    margin:0;
+    font-family: system-ui;
+    background:#f5f6fa;
+}
+
+header{
+    background:#1f2a38;
+    color:white;
+    padding:14px;
+    font-size:18px;
+}
+
+/* 输入区 */
+.form{
+    padding:15px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+}
+
+input{
+    padding:8px;
+    border:1px solid #ddd;
+    border-radius:6px;
+}
+
+button{
+    padding:9px;
+    border:none;
+    border-radius:6px;
+    background:#2f80ed;
+    color:white;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#1f6fd1;
+}
+
+/* 卡片 */
+.grid{
+    padding:15px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+    gap:12px;
+}
+
+.card{
+    background:white;
+    border-radius:12px;
+    padding:12px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.06);
+    cursor:pointer;
+    transition:0.2s;
+}
+
+.card:hover{
+    transform:translateY(-4px);
+}
+
+.title{
+    font-weight:600;
+    margin-bottom:6px;
+}
+
+.tag{
+    font-size:12px;
+    background:#eef2f7;
+    padding:2px 6px;
+    border-radius:6px;
+    display:inline-block;
+}
+
+.bar{
+    height:6px;
+    background:#eee;
+    border-radius:4px;
+    overflow:hidden;
+    margin-top:6px;
+}
+
+.fill{
+    height:100%;
+}
+
+.nine{ background:#2ecc71; }
+.biga{ background:#f39c12; }
+
+/* modal */
+.modal{
+    position:fixed;
+    top:0;left:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,0.5);
+    display:none;
+    align-items:center;
+    justify-content:center;
+}
+
+.modal-box{
+    background:white;
+    padding:15px;
+    border-radius:12px;
+    width:320px;
+}
+
+.modal-box input{
+    width:100%;
+    margin:6px 0;
+}
+
+.row{
+    display:flex;
+    gap:8px;
+}
+
+.row button{
+    flex:1;
+}
+
+.danger{
+    background:#e74c3c;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+/* =========================
+   🔧 1. 填你的 Supabase 信息
+========================= */
+const supabaseUrl = "你的Project URL";
+const supabaseKey = "你的anon key";
+
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+/* =========================
+   🧠 状态
+========================= */
+let data = [];
+let editId = null;
+
+/* =========================
+   📥 读取数据
+========================= */
+async function loadData(){
+    let { data: res, error } = await supabase
+        .from('cat_food')
+        .select('*')
+        .order('created_at', { ascending:false });
+
+    if(error){
+        console.log(error);
+        return;
+    }
+
+    data = res;
+    render();
+}
+
+/* =========================
+   🎨 渲染卡片
+========================= */
+function render(){
+    const grid = document.getElementById("grid");
+    grid.innerHTML = "";
+
+    data.forEach(item=>{
+        let div = document.createElement("div");
+        div.className = "card";
+
+        div.innerHTML = `
+            <div class="title">${item.name}</div>
+            <div class="tag">${item.brand || "未知品牌"}</div>
+
+            <div style="font-size:12px;margin-top:6px;">九百 ${item.nine}</div>
+            <div class="bar"><div class="fill nine" style="width:${item.nine*10}%"></div></div>
+
+            <div style="font-size:12px;margin-top:6px;">鼻嘎 ${item.biga}</div>
+            <div class="bar"><div class="fill biga" style="width:${item.biga*10}%"></div></div>
+        `;
+
+        div.onclick = ()=>openEdit(item);
+        grid.appendChild(div);
+    });
+}
+
+/* =========================
+   ➕ 新增
+========================= */
+async function addItem(){
+    let name = document.getElementById("name").value;
+    let brand = document.getElementById("brand").value;
+    let nine = parseFloat(document.getElementById("nine").value || 0);
+    let biga = parseFloat(document.getElementById("biga").value || 0);
+
+    if(!name) return alert("请输入名称");
+
+    await supabase.from("cat_food").insert([{
+        name, brand, nine, biga
+    }]);
+
+    clearInputs();
+    loadData();
+}
+
+/* =========================
+   ✏️ 编辑
+========================= */
+function openEdit(item){
+    editId = item.id;
+
+    document.getElementById("mName").value = item.name;
+    document.getElementById("mBrand").value = item.brand;
+    document.getElementById("mNine").value = item.nine;
+    document.getElementById("mBiga").value = item.biga;
+
+    document.getElementById("modal").style.display = "flex";
+}
+
+/* 保存编辑 */
+async function saveEdit(){
+    await supabase
+        .from("cat_food")
+        .update({
+            name: mName().value,
+            brand: mBrand().value,
+            nine: parseFloat(mNine().value || 0),
+            biga: parseFloat(mBiga().value || 0)
+        })
+        .eq("id", editId);
+
+    closeModal();
+    loadData();
+}
+
+/* =========================
+   🗑 删除
+========================= */
+async function deleteItem(){
+    await supabase
+        .from("cat_food")
+        .delete()
+        .eq("id", editId);
+
+    closeModal();
+    loadData();
+}
+
+/* =========================
+   🧼 UI
+========================= */
+function clearInputs(){
+    document.getElementById("name").value = "";
+    document.getElementById("brand").value = "";
+    document.getElementById("nine").value = "";
+    document.getElementById("biga").value = "";
+}
+
+function closeModal(){
+    document.getElementById("modal").style.display = "none";
+}
+
+/* DOM helpers */
+const mName = ()=>document.getElementById("mName");
+const mBrand = ()=>document.getElementById("mBrand");
+const mNine = ()=>document.getElementById("mNine");
+const mBiga = ()=>document.getElementById("mBiga");
+
+/* 初始化 */
+loadData();
+</script>
+
+<body>
+
+<header>🐱 猫咪食品管理系统 V3（Supabase 云同步版）</header>
+
+<!-- 输入区 -->
+<div class="form">
+    <input id="name" placeholder="食品名称">
+    <input id="brand" placeholder="品牌">
+    <input id="nine" placeholder="九百评分">
+    <input id="biga" placeholder="鼻嘎评分">
+    <button onclick="addItem()">新增</button>
+</div>
+
+<!-- 卡片 -->
+<div class="grid" id="grid"></div>
+
+<!-- 编辑弹窗 -->
+<div class="modal" id="modal">
+    <div class="modal-box">
+
+        <input id="mName" placeholder="名称">
+        <input id="mBrand" placeholder="品牌">
+        <input id="mNine" placeholder="九百评分">
+        <input id="mBiga" placeholder="鼻嘎评分">
+
+        <div class="row">
+            <button onclick="saveEdit()">保存</button>
+            <button class="danger" onclick="deleteItem()">删除</button>
+        </div>
+
+        <div class="row" style="margin-top:8px;">
+            <button onclick="closeModal()">关闭</button>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>
